@@ -75,6 +75,10 @@ kubectl apply -f .
 
 Generate the load on deployed test app and see the logs for predictive autoscalar and sideby watch the number of pods increasing/decreasing based on CPU prediction.
 
+## Tuning:
+Adjust TARGET_CPU_PER_POD, MIN_REPLICAS, MAX_REPLICAS, and other parameters as needed.
+
+
 ## Summary
 
 This script predicts future CPU load for a Kubernetes deployment and automatically scales the number of pods to optimize resource usage and performance, using Prometheus for monitoring and Prophet for forecasting
