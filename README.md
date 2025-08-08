@@ -20,29 +20,29 @@ The Script `predictive_autoscalar.py` script automatically scale a Kubernetes de
 
 ### How It Works
 
-#### Configuration via Environment Variables
+#### * Configuration via Environment Variables
 
 The script reads settings like the Prometheus server URL, deployment name, namespace, CPU target per pod, min/max replicas, and prediction intervals from environment variables (with sensible defaults).
 
-#### Fetching CPU Metrics
+#### * Fetching CPU Metrics
 
 It queries Prometheus for recent CPU usage metrics for the specified deployment’s pods.
 Data is retrieved for a configurable window (default: last 180 minutes).
 
-#### Forecasting Future CPU Usage
+#### * Forecasting Future CPU Usage
 
 Uses the Prophet time series forecasting library to predict CPU usage for the next few minutes (default: 5 minutes ahead).
 
-#### Calculating Desired Replicas
+#### * Calculating Desired Replicas
 
 Based on the predicted CPU usage and the target CPU per pod, it calculates the optimal number of replicas.
 Ensures the replica count stays within the configured min/max bounds.
 
-#### Scaling the Deployment
+#### * Scaling the Deployment
 
 Uses kubectl scale to adjust the number of replicas in the Kubernetes deployment.
 
-#### Looping
+#### * Looping
 
 Repeats the process every 5 minutes, continuously monitoring and scaling as needed.
 
@@ -57,18 +57,15 @@ docker build -t predictive-autoscalar:<tag> .
 
 The manifest folder containers k8s deployment file which is require for this implementation.
 
-* prometheus
-This folder contains promentheus deployments file. To apply this, go to the folder and run:
+**prometheus** folder contains promentheus deployments file. To apply this, go to the folder and run:
 ```
 kubectl apply -f .
 ```
-* test-app
-This folder contains a test app which will be use for predictive auto scaling. To deploy this, go to the folder and run:
+**test-app** folder contains a test app which will be use for predictive auto scaling. To deploy this, go to the folder and run:
 ```
 kubectl apply -f .
 ```
-* predictive-autoscalar
-This folder contains predictive autoscalar. Before applying this k8s manifests, edit the ENV variables in the `predictive-autoscalar.yaml` file according to you application and require values.
+**predictive-autoscalar** folder contains predictive autoscalar. Before applying this k8s manifests, edit the ENV variables in the `predictive-autoscalar.yaml` file according to you application and require values.
 To deploy this, run:
 ```
 kubectl apply -f .
