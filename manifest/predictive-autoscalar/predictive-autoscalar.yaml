@@ -17,7 +17,7 @@ spec:
       serviceAccountName: predictive-autoscaler-sa
       containers:
         - name: predictive-autoscaler
-          image: docker.io/060696/predictive-autoscalar:v4
+          image: <predictive-autoscalar-image:tag>
           env:
             - name: PROMETHEUS_URL
               value: "http://prometheus-server.default.svc.cluster.local:9090"
