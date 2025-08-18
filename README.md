@@ -80,4 +80,4 @@ Adjust `TARGET_CPU_PER_POD, MIN_REPLICAS, MAX_REPLICAS` and other parameters as 
 
 ## Summary
 
-This script predicts future CPU load for a Kubernetes deployment and automatically scales the number of pods to optimize resource usage and performance, using Prometheus for monitoring and Prophet for forecasting
+This script predicts future CPU load for a Kubernetes deployment and automatically scales the number of pods to optimize resource usage and performance, using Prometheus for monitoring and Prophet for forecasting.
