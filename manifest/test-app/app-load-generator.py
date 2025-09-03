@@ -2,7 +2,7 @@ import requests
 import threading
 import time
 
-TARGET_URL = "http://<your-app-service>:<port>"  # Replace with your app's service endpoint
+TARGET_URL = "http://localhost:8089/"  # Replace with your app's service endpoint
 
 def load():
     while True:
@@ -10,14 +10,14 @@ def load():
             requests.get(TARGET_URL)
         except Exception as e:
             print(e)
-        time.sleep(0.1)  # Adjust for more/less load
+        time.sleep(0.5)  # Adjust for more/less load
 
 threads = []
-for _ in range(20):  # Number of concurrent threads
+for _ in range(30):  # Number of concurrent threads
     t = threading.Thread(target=load)
     t.daemon = True
     t.start()
     threads.append(t)
 
-time.sleep(600)  # Run for 10 minutes
+time.sleep(1200)  # Run for 10 minutes
 

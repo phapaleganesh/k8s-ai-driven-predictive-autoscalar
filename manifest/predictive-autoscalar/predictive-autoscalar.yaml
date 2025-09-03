@@ -26,13 +26,13 @@ spec:
             - name: NAMESPACE
               value: "default"
             - name: TARGET_CPU_PER_POD
-              value: "0.2"
+              value: "0.02"
             - name: MIN_REPLICAS
-              value: "2"
+              value: "1"
             - name: MAX_REPLICAS
-              value: "8"
+              value: "10"
             - name: PREDICT_MINUTES_AHEAD
               value: "5"
             - name: SCRAPE_MINUTES
-              value: "60"
+              value: "180"
 
