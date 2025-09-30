@@ -1,5 +1,5 @@
 # --- Stage 1: Build ---
-FROM python:3.11-slim AS builder
+FROM docker.io/python:3.11-slim AS builder
 MAINTAINER "gphapale@deloitte.com"
 WORKDIR /app
 
@@ -15,7 +15,7 @@ RUN pip install --upgrade pip
 RUN pip install --prefix=/install -r requirements.txt
 
 # --- Stage 2: Runtime ---
-FROM python:3.11-slim
+FROM docker.io/python:3.11-slim
 
 WORKDIR /app
 COPY --from=builder /app/kubectl /usr/local/bin/kubectl
