@@ -4,3 +4,8 @@ prophet==1.1.5
 gunicorn==21.2.0
 numpy==1.26.4 
 plotly
+
+# Optional: Kubernetes client (only needed if USE_K8S_CLIENT=true)
+kubernetes==26.1.0
+prometheus-client==0.16.0
+flask==2.3.2

@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: predictive-autoscalar
+  labels:
+    app: predictive-autoscalar
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: predictive-autoscalar
+  template:
+    metadata:
+      labels:
+        app: predictive-autoscalar
+      annotations:
+        prometheus.io/scrape: 'true'
+        prometheus.io/port: '8000'
+        prometheus.io/path: /metrics
+    spec:
+      serviceAccountName: predictive-autoscaler-sa
+      containers:
+        - name: predictive-autoscaler
+          image: predictive-autoscaler-dashboard:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: metrics
+              containerPort: 8000
+              protocol: TCP
+            - name: dashboard
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: PROMETHEUS_URL
+              value: 'http://prometheus-server.default.svc.cluster.local:9090'
+            - name: DEPLOYMENT_NAME
+              value: nginx-app
+            - name: NAMESPACE
+              value: default
+            - name: AUTOSCALER_METRICS_URL
+              value: 'http://localhost:8000'
+            - name: DRY_RUN
+              value: 'false'
+            - name: USE_K8S_CLIENT
+              value: 'false'
+            - name: TARGET_CPU_PER_POD
+              value: '0.005'
+            - name: MIN_REPLICAS
+              value: '1'
+            - name: MAX_REPLICAS
+              value: '10'
+            - name: PREDICT_MINUTES_AHEAD
+              value: '5'
+            - name: SCRAPE_MINUTES
+              value: '120'
+            - name: PROM_STEP
+              value: 15s
+            - name: COOLDOWN_SECONDS
+              value: '60'
+            - name: MAX_REPLICA_DELTA
+              value: '2'
+            - name: MIN_POINTS_FOR_PREDICTION
+              value: '3'
+            - name: METRICS_PORT
+              value: '8000'
+            - name: REACTIVE_CHECK_ENABLED
+              value: 'true'
+            - name: REACTIVE_CHECK_INTERVAL_SECONDS
+              value: '30'
+            - name: REACTIVE_WINDOW_SECONDS
+              value: '60'
+            - name: REACTIVE_USE_PER_POD_AVG
+              value: 'true'
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: predictive-autoscalar
+  labels:
+    app: predictive-autoscalar
+  annotations:
+    prometheus.io/scrape: 'true'
+    prometheus.io/port: '8000'
+spec:
+  selector:
+    app: predictive-autoscalar
+  type: NodePort  # Set service type here
+  ports:
+    - name: metrics
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
+    - name: dashboard
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+      nodePort: 30080  # Optional: specify NodePort for dashboard (range 30000-32767)

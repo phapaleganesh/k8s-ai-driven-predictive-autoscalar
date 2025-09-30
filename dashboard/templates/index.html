@@ -1,0 +1,244 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Predictive Autoscaler Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Luxon date adapter for Chart.js time scale -->
+  <script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@2"></script>
+  <style>
+    body { background:#0b2030; color:#cfe8ff; font-family: Arial, sans-serif; }
+    .grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:12px; padding:20px; }
+    .card { background:#0f2a3a; padding:18px; border-radius:8px; box-shadow: 0 2px 6px rgba(0,0,0,.4); }
+    .big { font-size:32px; font-weight:700; }
+    .small { font-size:14px; color:#9fc6e3 }
+    #chart { grid-column: span 2; height:300px; }
+  </style>
+</head>
+<body>
+  <h1 style="padding:20px">Predictive Autoscaler</h1>
+  <div class="grid">
+    <div class="card">
+      <div class="small">Deployment Name</div>
+      <div id="deployment" class="big">-</div>
+    </div>
+    <div class="card">
+      <div class="small">Namespace</div>
+      <div id="namespace" class="big">-</div>
+    </div>
+    <div class="card">
+      <div class="small">Current Replicas</div>
+      <div id="current_replicas" class="big">-</div>
+    </div>
+    <div class="card">
+      <div class="small">Current CPU Utilization (pods average)</div>
+      <div id="current_cpu" class="big">-</div>
+    </div>
+
+    <div class="card">
+      <div class="small">Target CPU Utilization Per Pod</div>
+      <div id="target_cpu" class="big">-</div>
+    </div>
+
+    <div class="card">
+      <div class="small">Predicted CPU Utilization</div>
+      <div id="predicted_cpu" class="big">-</div>
+    </div>
+
+    <div id="chart" class="card">
+      <canvas id="cpuChart" width="800" height="300"></canvas>
+    </div>
+
+    <div class="card">
+      <div class="small">Predicted Minutes</div>
+      <div id="pred_minutes" class="big">-</div>
+    </div>
+
+    <div class="card">
+      <div class="small">Scrape Minutes</div>
+      <div id="scrape_minutes" class="big">-</div>
+    </div>
+
+    <div class="card">
+      <div class="small">Metrics Collector URL</div>
+      <div id="metrics_url" class="big">-</div>
+    </div>
+
+    <div class="card">
+      <div class="small">Last Updated</div>
+      <div id="last_updated" class="big">-</div>
+    </div>
+
+    <!-- Raw metrics preview removed in production view -->
+
+  </div>
+
+  <script>
+    // timestamp (ms) of last overview update
+    let lastUpdatedTs = null;
+    let _lastUpdatedIntervalId = null;
+
+    function formatRelativeAge(msDiff) {
+      const s = Math.floor(msDiff / 1000);
+      if (s < 1) return 'just now';
+      if (s < 60) return s + (s === 1 ? ' sec ago' : ' sec ago');
+      const m = Math.floor(s / 60);
+      if (m < 60) return m + (m === 1 ? ' min ago' : ' min ago');
+      const h = Math.floor(m / 60);
+      if (h < 24) return h + (h === 1 ? ' hr ago' : ' hrs ago');
+      const d = Math.floor(h / 24);
+      return d + (d === 1 ? ' day ago' : ' days ago');
+    }
+
+    function _ensureLastUpdatedTicker() {
+      if (_lastUpdatedIntervalId) return;
+      _lastUpdatedIntervalId = setInterval(() => {
+        if (!lastUpdatedTs) return;
+        const el = document.getElementById('last_updated');
+        if (!el) return;
+        el.innerText = formatRelativeAge(Date.now() - lastUpdatedTs);
+      }, 1000);
+    }
+
+    async function fetchOverview() {
+      try {
+        const res = await fetch('/api/overview');
+        const j = await res.json();
+        document.getElementById('deployment').innerText = j.deployment || '-';
+        document.getElementById('namespace').innerText = j.namespace || '-';
+
+        // Show predicted CPU even when the value is 0.0 (falsy). Check for null/undefined explicitly.
+        if (j.predicted_cpu !== null && j.predicted_cpu !== undefined && !isNaN(j.predicted_cpu)) {
+          // Display as a numeric value; autoscaler exposes total CPU cores predicted
+          document.getElementById('predicted_cpu').innerText = Number(j.predicted_cpu).toFixed(2);
+        } else {
+          document.getElementById('predicted_cpu').innerText = '-';
+        }
+
+        // Display desired_replicas in the Current Replicas card so the UI shows a value
+        if (j.desired_replicas !== null && j.desired_replicas !== undefined && !isNaN(j.desired_replicas)) {
+          document.getElementById('current_replicas').innerText = String(j.desired_replicas);
+        }
+
+        document.getElementById('metrics_url').innerText = j.metrics_endpoint || (window.location.hostname + ':8000');
+
+  // show other config values
+  document.getElementById('target_cpu').innerText = (j.target_cpu !== undefined ? String(j.target_cpu) : '-');
+  document.getElementById('pred_minutes').innerText = (j.pred_minutes !== undefined ? String(j.pred_minutes) : '-');
+  document.getElementById('scrape_minutes').innerText = (j.scrape_minutes !== undefined ? String(j.scrape_minutes) : '-');
+
+  // update last-updated stamp (relative, e.g. '6 sec ago')
+  lastUpdatedTs = Date.now();
+  document.getElementById('last_updated').innerText = 'just now';
+  _ensureLastUpdatedTicker();
+      } catch (e) {
+        console.error('fetchOverview failed', e);
+        document.getElementById('metrics_preview').innerText = '(overview fetch failed)';
+      }
+    }
+
+    let chart = null;
+    function buildChart() {
+      const ctx = document.getElementById('cpuChart');
+        chart = new Chart(ctx, {
+        type: 'line',
+        data: { datasets: [
+          { label: 'Current CPU', data: [], borderColor: '#4bc0c0', tension:0.2 },
+          { label: 'Predicted CPU (point)', data: [], borderColor: '#ff6384', tension:0.2, borderDash:[6,4] },
+          { label: 'Predicted CPU (series)', data: [], borderColor: '#ff9fb6', tension:0.2, borderDash:[4,4], pointRadius:0 }
+        ] },
+        // Use a simple category x-axis with ISO timestamp strings so we don't rely on a date adapter
+            options: {
+              scales: {
+                x: { type: 'category', ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 12 } },
+                y: { beginAtZero: true }
+              },
+              elements: { point: { radius: 1 }, line: { tension: 0.2 } },
+              interaction: { mode: 'index', intersect: false }
+            }
+      });
+    }
+
+    async function fetchTimeseries() {
+      try {
+        const res = await fetch('/api/timeseries');
+        const j = await res.json();
+        const cpu = j.cpu || [];
+        const pred = j.predicted_cpu;
+  // convert timestamps to ISO strings for category axis labels (avoids date-adapter)
+  // historical labels and values
+  const labels = cpu.map(p => new Date(p[0]*1000).toISOString());
+  const data = cpu.map(p => Number(p[1]));
+        chart.data.labels = labels;
+        chart.data.datasets[0].data = data;
+
+        // Plot simple scalar predicted_cpu as last point (kept for backward compatibility)
+        if (pred !== null && pred !== undefined && !isNaN(pred)) {
+          const predPoint = Number(pred);
+          if (labels.length === 0) {
+            chart.data.labels = [new Date().toISOString()];
+            chart.data.datasets[0].data = [null];
+            chart.data.datasets[1].data = [predPoint];
+          } else {
+            const predArray = labels.map((_, i) => (i === labels.length - 1 ? predPoint : null));
+            chart.data.datasets[1].data = predArray;
+          }
+        } else {
+          chart.data.datasets[1].data = [];
+        }
+
+        // If server provided a full predicted_series, plot it aligned by timestamp
+        const predicted_series = j.predicted_series || null;
+        if (predicted_series && Array.isArray(predicted_series) && predicted_series.length) {
+          // Merge labels with predicted timestamps
+          const predLabels = predicted_series.map(p => new Date(p[0]*1000).toISOString());
+          // combine unique sorted labels
+          const combined = Array.from(new Set(labels.concat(predLabels))).sort();
+          chart.data.labels = combined;
+          // helper to build aligned array
+          const mapHist = new Map(labels.map((l,i)=>[l, data[i]]));
+          const mapPred = new Map(predicted_series.map(p=>[new Date(p[0]*1000).toISOString(), Number(p[1])]));
+          const alignedHist = combined.map(l => mapHist.has(l) ? mapHist.get(l) : null);
+          const alignedPred = combined.map(l => mapPred.has(l) ? mapPred.get(l) : null);
+          chart.data.datasets[0].data = alignedHist;
+          chart.data.datasets[2].data = alignedPred;
+        } else {
+          // clear series dataset if no predicted_series provided
+          chart.data.datasets[2].data = [];
+        }
+        chart.update();
+
+        // update small cards: show most recent non-null sample rather than averaging
+        if (data.length) {
+          // find last numeric sample (skip nulls)
+          let lastSample = null;
+          for (let i = data.length - 1; i >= 0; --i) {
+            const v = data[i];
+            if (v !== null && v !== undefined && !isNaN(v)) { lastSample = Number(v); break; }
+          }
+          if (lastSample !== null) {
+            const pct = lastSample * 100; // convert cores to percent
+            // show higher precision when percent < 1%
+            const formatted = pct < 1 ? pct.toFixed(2) + '%' : Math.round(pct) + '%';
+            document.getElementById('current_cpu').innerText = formatted;
+          }
+        }
+      } catch (e) {
+        console.error('fetchTimeseries failed', e);
+      }
+    }
+
+    try {
+      buildChart();
+    } catch (e) {
+      console.error('buildChart failed (continuing):', e);
+    }
+  // Poll every 10 seconds as requested
+  fetchOverview();
+  setInterval(fetchOverview, 10000);
+  fetchTimeseries();
+  setInterval(fetchTimeseries, 10000);
+  </script>
+</body>
+</html>
