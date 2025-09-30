@@ -68,7 +68,7 @@ def main():
                 logging.warning("Insufficient data for prediction.")
         except Exception as e:
             logging.error(f"Error in autoscaler loop: {e}")
-        time.sleep(180)  # 3 minutes
+        time.sleep(300)  # 5 minutes
 
 if __name__ == "__main__":
     main()
